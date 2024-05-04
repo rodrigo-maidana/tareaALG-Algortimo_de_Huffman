@@ -11,7 +11,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include "bitstream.h"
+#include "./include/bitstream.h"
 
 #define NDEPURAR
 

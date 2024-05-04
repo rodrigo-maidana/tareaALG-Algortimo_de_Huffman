@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "huffman.h"
+#include "./include/huffman.h"
 
 
 void forma_de_uso() {

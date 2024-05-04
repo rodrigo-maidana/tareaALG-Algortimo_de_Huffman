@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "arbol.h"
-#include "pq.h"
-#include "bitstream.h"
-#include "confirm.h"
+#include "./include/arbol.h"
+#include "./include/pq.h"
+#include "./include/bitstream.h"
+#include "./include/confirm.h"
 
 /*====================================================
      Constantes
@@ -212,6 +212,8 @@ void campobitsDemo() {
   Comprime archivo entrada y lo escriba a archivo salida.
   
   Retorna 0 si no hay errores.
+
+  Calcula las frecuencias de los caracteres en el archivo
 */
 int comprimir(char* entrada, char* salida) {
     
@@ -285,7 +287,7 @@ static int calcular_frecuencias(int* frecuencias, char* entrada) {
 }
 
 
-
+// funcion de utilidad para imprimir un campo de bits
 /* Crea el arbol huffman en base a las frecuencias dadas */
 static Arbol crear_huffman(int* frecuencias) {
 
@@ -433,6 +435,7 @@ static void decodificar(BitStream in, BitStream out, Arbol arbol) {
    de como decidiste representar los valores del arbol durante
    la compresion y descompresion.
 */
+// funcion de utilidad para imprimir un nodo
 static void imprimirNodo(Arbol nodo) {
     /* TU IMPLEMENTACION AQUI */
 }

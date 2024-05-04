@@ -1,4 +1,4 @@
-#include "pq.h"
+#include "./include/pq.h"
 #include <stdlib.h>
 
 
@@ -36,7 +36,7 @@ BOOLEAN pq_remove(PQ pq, void** retVal) {
    return TRUE;
 }
 
-/* retorna el tamaño de la cola de prioridad, 
+/* retorna el tamaï¿½o de la cola de prioridad, 
    retorna 0 si hubo error 
  */
 int pq_size(PQ pq) {

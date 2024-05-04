@@ -1,5 +1,5 @@
 /** Nota: mi cabecera debe ir antes que nada */
-#include "arbol.h"
+#include "./include/arbol.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,7 +7,7 @@
 
 #pragma warning(disable : 6011)
 
-/* Implementacion de cortesía ;P */
+/* Implementacion de cortesï¿½a ;P */
 
 /* Definicion interna para esta impelementacion */
 typedef struct _NodoArbol {
