@@ -1,5 +1,5 @@
 /** Nota: mi cabecera debe ir antes que nada */
-#include "./include/arbol.h"
+#include "../include/arbol.h"
 
 #include <stdlib.h>
 #include <stdio.h>

@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "./include/arbol.h"
-#include "./include/pq.h"
-#include "./include/bitstream.h"
-#include "./include/confirm.h"
+#include "arbol.h"
+#include "pq.h"
+#include "bitstream.h"
+#include "confirm.h"
 
 /*====================================================
      Constantes
@@ -187,7 +187,7 @@ static void testArbol() {
 static int calcular_frecuencias(int* frecuencias, char* entrada);
 static Arbol crear_huffman(int* frecuencias);
 static int codificar(Arbol T, char* entrada, char* salida);
-static void crear_tabla(campobits* tabla, Arbol T, campobits *bits);
+static void crear_tabla(campobits* tabla, Arbol T, unsigned int bits, int tamano);
 
 static Arbol leer_arbol(BitStream bs);
 static void decodificar(BitStream in, BitStream out, Arbol arbol);
@@ -212,8 +212,6 @@ void campobitsDemo() {
   Comprime archivo entrada y lo escriba a archivo salida.
   
   Retorna 0 si no hay errores.
-
-  Calcula las frecuencias de los caracteres en el archivo
 */
 int comprimir(char* entrada, char* salida) {
     
@@ -272,125 +270,188 @@ int descomprimir(char* entrada, char* salida) {
 
 /* Devuelve 0 si no hay errores */
 static int calcular_frecuencias(int* frecuencias, char* entrada) {
+    // Inicializa todas las frecuencias a cero
+    memset(frecuencias, 0, sizeof(int) * 256); // Asumimos que hay 256 caracteres posibles (ASCII extendido)
 
+    // Recorre cada carácter en la cadena de entrada
+    while (*entrada != '\0') {
+        unsigned char index = *entrada; // Convertir a unsigned char para manejar caracteres extendidos
+        frecuencias[index]++; // Incrementa la frecuencia del carácter correspondiente
+        entrada++; // Mueve el puntero al siguiente carácter
+    }
 
-    /* Este metodo recorre el archivo contando la frecuencia
-       que ocurre cada caracter y guardando el resultado en
-       el arreglo frecuencias
-    */
-
-    /* TU IMPLEMENTACION AQUI */
-    
-    /* Nota: comienza inicializando todas las frecuencias a cero!! */
-    
-    return 0;
+    return 0; // Retorna 0 indicando que no hubo errores
 }
 
 
-// funcion de utilidad para imprimir un campo de bits
+
 /* Crea el arbol huffman en base a las frecuencias dadas */
 static Arbol crear_huffman(int* frecuencias) {
-
-    /* TU IMPLEMENTACION AQUI */
-    
     PQ pq = pq_create();
-    
-    /* agregar cada nodo a cola... */
-    
-    /* mientras haya mas de un arbol en la cola, 
-       sacar dos arboles y juntarlos (segun el algoritmo de huffman)
-       reinsertar el nuevo arbol combinado
-    */
+    if (pq == NULL) {
+        return NULL; // Error al crear la cola de prioridades
+    }
 
+    // Crear un nodo para cada carácter con frecuencia no nula y agregarlo a la cola de prioridades
+    for (int i = 0; i < 256; i++) {
+        if (frecuencias[i] > 0) {
+            keyvaluepair* kvp = malloc(sizeof(keyvaluepair));
+            if (kvp == NULL) {
+                pq_destroy(pq);
+                return NULL; // Error de memoria
+            }
+            kvp->c = (char)i;
+            kvp->frec = frecuencias[i];
+            Arbol nodo = arbol_crear(kvp);
+            if (nodo == NULL) {
+                free(kvp);
+                pq_destroy(pq);
+                return NULL; // Error al crear el nodo
+            }
+            pq_add(pq, nodo, frecuencias[i]);
+        }
+    }
 
-    /* limpieza */
+    // Combinar nodos hasta que solo quede uno en la cola
+    while (pq_size(pq) > 1) {
+        Arbol a1, a2;
+        pq_remove(pq, (void**)&a1);
+        pq_remove(pq, (void**)&a2);
+
+        // Combinar a1 y a2 en un nuevo árbol
+        keyvaluepair* kvp = malloc(sizeof(keyvaluepair));
+        if (kvp == NULL) {
+            pq_destroy(pq);
+            return NULL; // Error de memoria
+        }
+        kvp->c = 0; // Carácter nulo para nodos internos
+        kvp->frec = ((keyvaluepair*)arbol_valor(a1))->frec + ((keyvaluepair*)arbol_valor(a2))->frec;
+
+        Arbol nuevo = arbol_crear(kvp);
+        if (nuevo == NULL) {
+            free(kvp);
+            pq_destroy(pq);
+            return NULL; // Error al crear el árbol
+        }
+
+        arbol_agregarIzq(nuevo, a1);
+        arbol_agregarDer(nuevo, a2);
+        pq_add(pq, nuevo, kvp->frec);
+    }
+
+    // El último árbol en la cola es el árbol de Huffman
+    Arbol huffman;
+    if (!pq_remove(pq, (void**)&huffman)) {
+        pq_destroy(pq);
+        return NULL; // Error al sacar el último árbol
+    }
+
     pq_destroy(pq);
-
-    return NULL;
+    return huffman;
 }
 
+// Función auxiliar para crear la tabla de codificación
+static void crear_tabla(campobits* tabla, Arbol T, unsigned int bits, int tamano) {
+    if (T == NULL) return;
 
+    // Si es un nodo hoja, asigna los bits y su tamaño
+    if (arbol_izq(T) == NULL && arbol_der(T) == NULL) {
+        keyvaluepair *kvp = (keyvaluepair *)arbol_valor(T);
+        tabla[(unsigned char)kvp->c].bits = bits;
+        tabla[(unsigned char)kvp->c].tamano = tamano;
+    } else {
+        // Recursivamente asigna bits a los nodos izquierdo y derecho
+        crear_tabla(tabla, arbol_izq(T), (bits << 1) | 0, tamano + 1);
+        crear_tabla(tabla, arbol_der(T), (bits << 1) | 1, tamano + 1);
+    }
+}
 
+void PutBitStreamTree(Arbol T, BitStream bs) {
+    if (T == NULL) return;
+
+    // Si es una hoja, escribe bit 1 seguido por el carácter
+    if (arbol_izq(T) == NULL && arbol_der(T) == NULL) {
+        keyvaluepair *kvp = (keyvaluepair *)arbol_valor(T);
+        PutBit(bs, 1); // Bit que indica hoja
+        PutByte(bs, kvp->c); // Carácter
+    } else {
+        PutBit(bs, 0); // Bit que indica nodo interno
+        PutBitStreamTree(arbol_izq(T), bs); // Recursividad a la izquierda
+        PutBitStreamTree(arbol_der(T), bs); // Recursividad a la derecha
+    }
+}
 
 static int codificar(Arbol T, char* entrada, char* salida) {
+    FILE* in = fopen(entrada, "rb");
+    BitStream out = OpenBitStream(salida, "wb");
+    if (!in || !out) {
+        if (in) fclose(in);
+        if (out) CloseBitStream(out);
+        return -1; // Error al abrir los archivos
+    }
 
-    FILE* in = NULL;
-    BitStream out = NULL;
-
-    /* Dado el arbol crear una tabla que contiene la
-       secuencia de bits para cada caracter.
-       
-       Los bits se guardan en compobits que es un struct
-       que contiene un int (sin signo) y un tamano.
-       La idea es que voy agregando bits al campo de bits
-       mientras en un campo (bits), y el numero de bits
-       que necesito en otro (tamano)
-    */
     campobits tabla[NUM_CHARS];
+    memset(tabla, 0, NUM_CHARS * sizeof(campobits));
 
-    /* Inicializar tabla de campo de bits a cero */
-    memset(tabla, 0, NUM_CHARS*sizeof(struct _campobits));
-    
+    // Crear tabla de codificación
+    crear_tabla(tabla, T, 0, 0);
 
-    
-    /* Abrir archivos */
-    /* TU IMPLEMENTACION VA AQUI .. */
+    // Escribir el árbol al archivo de salida
+    arbol_preorden(T, (void (*)(Arbol, void*))PutBitStreamTree, out);
 
-    
-    /* Escribir arbol al archivo de salida */
+    // Escribir el texto codificado al archivo
+    int c;
+    while ((c = fgetc(in)) != EOF) {
+        campobits cb = tabla[c];
+        for (int i = 0; i < cb.tamano; i++) {
+            int bit = (cb.bits >> i) & 1;
+            PutBit(out, bit);
+        }
+    }
 
-    /* TU IMPLEMENTACION VA AQUI .. 
+    // Limpieza
+    fclose(in);
+    CloseBitStream(out);
 
-
-        Nota: puedes utilizar arbol_preorden() para lograr esto
-        facilmente.
-        
-        El truco es que al escribir el arbol, 
-           - Si no es hoja: 
-               escribe un bit 0 
-           - Si es hoja:
-                bit 1 seguido por el byte ASCII que representa el caracter 
-        
-        Para escribir bits utiliza PutBits() de bitstream.h
-        Para escribir bytes utiliza PutByte() de bitstream.h
-    */
-    
-
-
-    /* Escribir el texto codificado al archivo*/
-
-    /* 
-        TU IMPLEMENTACION VA AQUI .. 
-        
-        
-        Lee todos los datos de nuevo del archivo de entrada
-        y agregalos al archivo de salida utilizando la
-        tabla de conversion.
-        
-        Recuerda que tienes que escribir bit por bit utilzando
-        PutBit() de bitstream.h. Por ejemplo, dado una secuencia
-        de bits podrias escribirlo al archivo asi:
-        
-            /- Esto escribe todos los bits en un campobits a un
-               BitStream  -/
-            for (i = 0; i < tabla[c].tamano; i++) {
-               int bit =  0 != (tabla[c].bits & (0x1<<i));
-               PutBit(out, bit);
-            }
-        
-        Puedes colocarlo en una funcion si quieres
-
-    */
-
-    /* No te olvides de limpiar */
-    if (in)
-        fclose(in);
-    if (out)
-        CloseBitStream(out);
-       
     return 0;
 }
              
+// Función auxiliar recursiva para leer un nodo del árbol
+static Arbol leer_nodo(BitStream bs) {
+    int bit = GetBit(bs);
+    if (bit == -1) return NULL; // Error en la lectura o fin del stream
+
+    if (bit == 1) {
+        // Es una hoja, lee el byte del carácter
+        unsigned char c = GetByte(bs);
+        keyvaluepair* kvp = malloc(sizeof(keyvaluepair));
+        if (!kvp) return NULL; // Fallo de memoria
+        kvp->c = c;
+        kvp->frec = 0; // La frecuencia no se reconstruye en la descompresión
+        return arbol_crear(kvp);
+    } else {
+        // Es un nodo interno, lee recursivamente los subárboles izquierdo y derecho
+        Arbol izq = leer_nodo(bs);
+        Arbol der = leer_nodo(bs);
+        if (!izq || !der) {
+            arbol_destruir(izq);
+            arbol_destruir(der);
+            return NULL; // Manejo de errores, si algún subárbol falla
+        }
+        keyvaluepair* kvp = malloc(sizeof(keyvaluepair));
+        if (!kvp) {
+            arbol_destruir(izq);
+            arbol_destruir(der);
+            return NULL; // Fallo de memoria
+        }
+        kvp->c = 0; // Los nodos internos no tienen carácter
+        kvp->frec = 0;
+        Arbol nodo = arbol_crear(kvp);
+        arbol_agregarIzq(nodo, izq);
+        arbol_agregarDer(nodo, der);
+        return nodo;
+    }
+}
 
 /* Esto se utiliza como parte de la descompresion (ver descomprimir())..
    
@@ -408,11 +469,7 @@ static int codificar(Arbol T, char* entrada, char* salida) {
    porque no hay mas nodos sin hijos)
 */
 static Arbol leer_arbol(BitStream bs) {
-  
-    /* TU IMPLEMENTACION AQUI */
-
-    return NULL;
-
+    return leer_nodo(bs);
 }
 
 /* Esto se utiliza como parte de la descompresion (ver descomprimir())..
@@ -425,9 +482,30 @@ static Arbol leer_arbol(BitStream bs) {
    Sigue con este proceso hasta que no hay mas bits en in.
 */   
 static void decodificar(BitStream in, BitStream out, Arbol arbol) {
-  
-    /* TU IMPLEMENTACION AQUI */
+    if (arbol == NULL) return; // Asegúrate de que el árbol no es nulo
+
+    Arbol nodo_actual = arbol;
+    int bit;
+
+    while ((bit = GetBit(in)) != -1) { // Lee bits hasta que no haya más
+        if (bit == 0) {
+            // Ir al subárbol izquierdo
+            nodo_actual = arbol_izq(nodo_actual);
+        } else if (bit == 1) {
+            // Ir al subárbol derecho
+            nodo_actual = arbol_der(nodo_actual);
+        }
+
+        // Comprobar si el nodo actual es una hoja
+        if (arbol_izq(nodo_actual) == NULL && arbol_der(nodo_actual) == NULL) {
+            // Es una hoja, obten el carácter
+            keyvaluepair* kvp = (keyvaluepair*) arbol_valor(nodo_actual);
+            PutByte(out, kvp->c); // Escribe el carácter al flujo de salida
+            nodo_actual = arbol; // Vuelve a la raíz para comenzar la decodificación del siguiente carácter
+        }
+    }
 }
+
 
 
 /* Esto es para imprimir nodos..
@@ -435,7 +513,18 @@ static void decodificar(BitStream in, BitStream out, Arbol arbol) {
    de como decidiste representar los valores del arbol durante
    la compresion y descompresion.
 */
-// funcion de utilidad para imprimir un nodo
 static void imprimirNodo(Arbol nodo) {
-    /* TU IMPLEMENTACION AQUI */
+    if (nodo == NULL) {
+        printf("Nodo nulo\n");
+        return;
+    }
+
+    keyvaluepair* kvp = (keyvaluepair*) arbol_valor(nodo);
+    if (kvp->c != 0) {
+        // Es una hoja
+        printf("Hoja: Caracter = '%c', Frecuencia = %d\n", kvp->c, kvp->frec);
+    } else {
+        // Es un nodo interno
+        printf("Nodo interno\n");
+    }
 }
