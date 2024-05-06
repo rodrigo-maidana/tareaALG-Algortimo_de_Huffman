@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 typedef struct NodoHuffman {
     char caracter;
@@ -55,12 +56,35 @@ void escribir_codificado(const char *filename, char **codigos, FILE *output) {
         perror("Error abriendo el archivo de entrada para codificar");
         return;
     }
+
+    uint8_t buffer = 0; // Almacena los bits que vamos a escribir
+    int bit_count = 0; // Cuenta cuántos bits tenemos en el buffer
+
     int c;
     while ((c = fgetc(input)) != EOF) {
-        fputs(codigos[c], output);
+        char *codigo = codigos[c]; // Obtén el código Huffman para el caracter
+        for (int i = 0; codigo[i] != '\0'; i++) {
+            // Coloca cada bit en el buffer
+            buffer = (buffer << 1) | (codigo[i] == '1'); // Desplaza el buffer un bit a la izquierda, añade el bit actual
+            bit_count++; // Incrementa el contador de bits
+
+            if (bit_count == 8) { // Si el buffer está lleno
+                fwrite(&buffer, 1, 1, output); // Escribe el buffer en el archivo
+                buffer = 0; // Resetea el buffer
+                bit_count = 0; // Resetea el contador de bits
+            }
+        }
     }
+
+    // Si queda algún bit en el buffer que no se haya escrito
+    if (bit_count > 0) {
+        buffer <<= (8 - bit_count); // Desplaza los bits a la izquierda
+        fwrite(&buffer, 1, 1, output); // Escribe los últimos bits
+    }
+
     fclose(input);
 }
+
 
 void decodificar_archivo(NodoHuffman *raiz, FILE *input, FILE *output) {
     NodoHuffman *current = raiz;
