@@ -4,6 +4,7 @@
         "pq.h": "c",
         "arbol.h": "c",
         "stdio.h": "c",
-        "huffman.h": "c"
+        "huffman.h": "c",
+        "stdlib.h": "c"
     }
 }
