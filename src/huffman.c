@@ -85,18 +85,25 @@ void escribir_codificado(const char *filename, char **codigos, FILE *output) {
     fclose(input);
 }
 
-
 void decodificar_archivo(NodoHuffman *raiz, FILE *input, FILE *output) {
     NodoHuffman *current = raiz;
-    int c;
-    while ((c = fgetc(input)) != EOF) {
-        current = (c == '0') ? current->izquierda : current->derecha;
-        if (!current->izquierda && !current->derecha) {
-            fputc(current->caracter, output);
-            current = raiz;
+    uint8_t buffer;
+    int bit_count = 0;
+    int bit;
+
+    while (fread(&buffer, 1, 1, input) == 1) { // Lee un byte del archivo
+        for (bit_count = 0; bit_count < 8; bit_count++) { // Procesa cada bit del byte
+            bit = (buffer >> (7 - bit_count)) & 1; // Extrae el bit actual
+            current = (bit == 0) ? current->izquierda : current->derecha; // Navega en el árbol de Huffman
+            
+            if (!current->izquierda && !current->derecha) { // Si es un nodo hoja
+                fputc(current->caracter, output); // Escribe el caracter correspondiente al archivo
+                current = raiz; // Reinicia al nodo raíz para el próximo carácter
+            }
         }
     }
 }
+
 
 int comprimir(const char *input_file, const char *output_file) {
     unsigned int frecuencias[256] = {0};
